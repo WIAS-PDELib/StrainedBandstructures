@@ -14,6 +14,7 @@ using TetGen
 using DrWatson
 using DataFrames
 using LinearSolve
+using Metis
 using Pardiso
 
 ## start with run_watson() --> result goto data directory
@@ -53,6 +54,8 @@ function get_defaults()
         "fully_coupled" => false,                       # parameter for later when we have the full model
         "postprocess" => false,                         # angle calculation, vtk files, cuts
         "linsolver" => LinearSolve.MKLPardisoFactorize(),         # linear solver (everything supported by LinearSolve)
+        "npartitions" => 1,                             # number of partitions for parallel solve and assembly
+        "parallel" => false,                             # number of partitions for parallel solve and assembly
         "damping" => 0,                                 # damping in Newton iteration
         "uniform_grid" => true,                         # uniform grid in z direction or nonuniform grid with local refinement at cut levels
         "interface_refinement" => false,                # enables a finer grid at material interface for each cross-section
@@ -196,6 +199,12 @@ function main(d = nothing; verbosity = 0, Plotter = nothing, force::Bool = false
                                             refinement_width = refinement_width, corner_refinement = d["corner_refinement"],
                                             manual_refinement = manual_refinement, rotate = d["rotate"])
     end
+
+    npartitions = d["npartitions"]
+    if npartitions > 1
+        xgrid = partition(xgrid, PlainMetisPartitioning(npart = npartitions))
+    end
+
     #xgrid = nanowire_grid(; scale = geometry)
     gridplot(xgrid_cross_section; Plotter=Plotter)
     @show xgrid
@@ -230,18 +239,33 @@ function main(d = nothing; verbosity = 0, Plotter = nothing, force::Bool = false
         BoundaryOperator = HomogeneousBoundaryData(1; regions = regions_bc)
         DisplacementOperator = get_displacement_operator(MD.TensorC, strainm, estrainm, eps0, a; dim = 3, displacement = u, emb = parameters, regions = 1:nregions, bonus_quadorder = bonus_quadorder)
         PolarisationOperator = nothing
-        Solution, last_residual = solve_lowlevel(xgrid,
-                                BoundaryOperator,
-                                DisplacementOperator.kernel,
-                                PolarisationOperator,
-                                parameters;
-                                linsolver = linsolver,
-                                nsteps = [nsteps, 1],
-                                FETypes = [FEType_D, FEType_P],
-                                target_residual = [tres, tres],
-                                solve_polarisation = polarisation,
-                                coupled = false,
-                                maxiterations = [maxits, 1])
+        if d["parallel"]
+            Solution, last_residual = solve_lowlevel_parallel(xgrid,
+                                    BoundaryOperator,
+                                    DisplacementOperator.kernel,
+                                    PolarisationOperator,
+                                    parameters;
+                                    linsolver = linsolver,
+                                    nsteps = [nsteps, 1],
+                                    FETypes = [FEType_D, FEType_P],
+                                    target_residual = [tres, tres],
+                                    solve_polarisation = polarisation,
+                                    coupled = false,
+                                    maxiterations = [maxits, 1])
+        else
+            Solution, last_residual = solve_lowlevel(xgrid,
+                                    BoundaryOperator,
+                                    DisplacementOperator.kernel,
+                                    PolarisationOperator,
+                                    parameters;
+                                    linsolver = linsolver,
+                                    nsteps = [nsteps, 1],
+                                    FETypes = [FEType_D, FEType_P],
+                                    target_residual = [tres, tres],
+                                    solve_polarisation = polarisation,
+                                    coupled = false,
+                                    maxiterations = [maxits, 1])
+        end
     else
         ## problem description
         PD = ProblemDescription("My problem")
