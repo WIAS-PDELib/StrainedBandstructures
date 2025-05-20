@@ -52,7 +52,7 @@ function get_defaults()
         "polarisation" => false,                         # also solve for polarisation
         "fully_coupled" => false,                       # parameter for later when we have the full model
         "postprocess" => false,                         # angle calculation, vtk files, cuts
-        "linsolver" => LinearSolve.PardisoJL(),         # linear solver (everything supported by LinearSolve)
+        "linsolver" => LinearSolve.MKLPardisoFactorize(),         # linear solver (everything supported by LinearSolve)
         "damping" => 0,                                 # damping in Newton iteration
         "uniform_grid" => true,                         # uniform grid in z direction or nonuniform grid with local refinement at cut levels
         "interface_refinement" => false,                # enables a finer grid at material interface for each cross-section
@@ -380,7 +380,7 @@ function load_data(d = nothing; watson_datasubdir = watson_datasubdir, kwargs...
 end
 
 function export_vtk(d = nothing; upscaling = 0, kwargs...)
-    if d == nothing
+    if d === nothing
         d = load_data(d; kwargs...)
     end
     filename_vtk = savename(d, ""; allowedtypes = watson_allowedtypes, accesses = watson_accesses)
