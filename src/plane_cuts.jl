@@ -614,6 +614,25 @@ function perform_simple_plane_cuts(target_folder_cut, Solution_original, plane_p
         for c = 1 : 6
             @info "% minimal/maximal jump at interface in $(component_names[c]) component: $(100 .* extrema(jumps[c,:]))"
         end
+        
+        if Plotter !== nothing
+            interfacegrid = simplexgrid(xinterface)
+            jump_fefunc = FEVector(FESpace{H1P1{1}}(interfacegrid), entries = jumps[1,:])
+
+            plt = GridVisualizer(; Plotter = Plotter, layout = (1,1), clear = true, size = (800,600))
+            colors = [:black, :blue, :red, :green, :yellow, :magenta]
+            plt1 = nothing
+            for c = 1 : 6
+                jump_fefunc.entries .= jumps[c,:]
+                plt1 = scalarplot!(plt[1,1], interfacegrid, jump_fefunc[1]; clear = false, label = component_names[c], color = colors[c], markershape = :circle, markevery = 1, markersize = 10, legend = :cb)
+            end
+            filename = target_folder_cut_level * "jumps_along_interface.png"
+            if isdefined(Plotter,:savefig)
+                Plotter.savefig(filename)
+            else
+                GridVisualize.save(filename, plt1; Plotter = Plotter)
+            end
+        end
 
         ## get 2D coordinates of the simple grid by applying the rotation R
         cut_grid2D = deepcopy(cut_grid)

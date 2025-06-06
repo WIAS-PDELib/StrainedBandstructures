@@ -90,7 +90,7 @@ include("solvers.jl")
 export solve_by_embedding
 export solve_by_embedding!
 export solve_by_damping
-export solve_lowlevel
+export solve_lowlevel, solve_lowlevel_parallel
 
 include("solvers_from_energy.jl")
 export EnergyOperator, update_M!
