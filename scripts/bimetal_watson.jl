@@ -215,6 +215,7 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
     dim::Int = length(scale)
     periodic_regions = []
     @assert (femorder in 1:3)
+    geometry = copy(scale)
      ### DOUBLE CHECK dirichlet conditions ###
     if dim == 3
         if grid_type == "default"
@@ -224,10 +225,22 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
 
             xgrid, xgrid_cross_section = bimetal_tensorgrid_uniform(; scale = scale, nrefs = nrefs, material_border = mb, hz = hz); dirichlet_regions = [7,8]
 
+            periodic_regions = [
+                [5,2,1],
+                [[6,1],[3,4],2],
+                [[7,8],[9,10],3]
+               ]
         elseif grid_type == "condensator"
             xgrid = condensator3D(; scale = scale, d = 10, nrefs = nrefs); dirichlet_regions = [1,2,5,6] # core sides and bottoms
+            periodic_regions = [
+                            [[4,9],[2,6],1],
+                            #[[4,9],[2,6],1],
+                            #[1,3,2],
+                           # [7,8,2]
+                           ]
         elseif grid_type == "condensator_tensorgrid"
-            xgrid, xgrid_cross_section = condensator3D_tensorgrid!(; scale=scale, d=3, dx=1, nrefs=nrefs, stressor_cell_per=10)
+            xgrid, xgrid_cross_section = condensator3D_tensorgrid(; scale=scale, d=scale[3]/5, nrefs=nrefs)
+            geometry[3] = 2*scale[3] + scale[3]/5
             # core sides = [1,2,3,4], bottom and upper sides = [5,6], stressor sides = [7,8,9,10]
 
             #xgrid, xgrid_cross_section = condensator3D_tensorgrid(; scale = scale, d = 10, nrefs = nrefs)
@@ -236,10 +249,12 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
             #dirichlet_regions = [7] # stressor side
             #dirichlet_regions = [1,2,3,4,5,6] # core sides and bottoms
             if bc =="periodic"
-                periodic_regions = [[1,3,(f1,f2) -> abs(f1[1] - f2[1]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]],
-                                [2,4,(f1,f2) -> abs(f1[2] - f2[2]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]],
-                                [7,9,(f1,f2) -> abs(f1[1] - f2[1]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]],
-                                [8,10,(f1,f2) -> abs(f1[2] - f2[2]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]]]
+                periodic_regions = [
+                                [[4,9],[2,10],1],
+                                [[1,7],[3,8],2],
+                                [5,6,3]
+                               ]
+                
             end
          else
             xgrid = bimetal_strip3D_middle_layer(; scale = scale, reflevel = nrefs); dirichlet_regions = [3,4]
@@ -253,14 +268,16 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
             dirichlet_regions = [1,3]
         end
         if bc =="periodic"
-            periodic_regions = [[5,6,(f1,f2) -> abs(f1[1] - f2[1]) + abs(f1[2] - f2[2]) < 1e-12,  [-1,-1]],
-                            [1,3,(f1,f2) -> abs(f1[1] - f2[1]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1]],
-                            [2,4,(f1,f2) -> abs(f1[3] - f2[3]) + abs(f1[2] - f2[2]) < 1e-12,  [-1,-1]]]
+            periodic_regions = [
+                            #[2,4],
+                            [5,6,3],
+                            #[1,3]
+                            ]
         end
         xgrid = uniform_refine(xgrid,nrefs)
     end
     if Plotter !== nothing
-        gridplot(xgrid_cross_section; Plotter=Plotter)
+        gridplot(xgrid; Plotter=Plotter)
         @show xgrid
     end
 
@@ -315,16 +332,22 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
         end
     elseif bc == "periodic"
         ## add coupling information for periodic regions
-        FES = FESpace{FEType_D}(xgrid)
-        dofsX, dofsY, factors = Int[], Int[], Int[]
-        for j = 1 : length(periodic_regions)
-            dofsX_j, dofsY_j, factors_j = get_periodic_coupling_info(FES, xgrid, periodic_regions[j][1], periodic_regions[j][2], periodic_regions[j][3]; factor_components = periodic_regions[j][4])
-            append!(dofsX, dofsX_j)
-            append!(dofsY, dofsY_j)
-            append!(factors, factors_j)
+
+        function give_opposite!(d)
+            function closure(y, x)
+                y .= x
+                y[d] = geometry[d] - x[d]
+                return nothing
+            end
         end
-        PeriodicBoundaryOperator = CombineDofs(1, 1, dofsX, dofsY, factors)
-        assign_operator!(Problem, PeriodicBoundaryOperator)
+        FES = FESpace{FEType_D}(xgrid)
+        PeriodicBoundaryOperator = []
+        for j = 1 : length(periodic_regions)
+            @info "coupling regions $(periodic_regions[j][1]) and $(periodic_regions[j][2]) in direction $(periodic_regions[j][3])"
+            @time coupling_matrix = get_periodic_coupling_matrix(FES, periodic_regions[j][1], periodic_regions[j][2], give_opposite!(periodic_regions[j][3]))
+            push!(PeriodicBoundaryOperator, CombineDofs(u, u, coupling_matrix))
+            assign_operator!(Problem, PeriodicBoundaryOperator[end])
+        end
    end
 
     ##############
@@ -347,6 +370,9 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
                                 solve_polarisation = polarisation,
                                 coupled = false,
                                 maxiterations = [maxits, 1])
+
+   # Solution = ExtendableFEM.solve(Problem, FES)
+
 
     return Solution, residual
 end
