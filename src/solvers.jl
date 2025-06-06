@@ -194,6 +194,16 @@ function solve_lowlevel(
             fill!(bU, 0)
         end
 
+        flush!(SE)
+
+        ## apply changes for periodic boundary
+        if length(periodic_boundary_operator) > 0
+            for op in periodic_boundary_operator
+                ExtendableFEM.build_assembler!(op, [Solution[1], Solution[1]])
+                op.assembler(SE, rhs.entries, true, true)
+            end
+        end
+
         ## apply penalties for boundary condition
         if boundary_operator !== nothing
             assemble!(boundary_operator, FES[1])
@@ -203,21 +213,9 @@ function solve_lowlevel(
                 rhs.entries[dof] = 0
                 Solution.entries[dof] = 0
             end
+            flush!(SE)
         end
-
-        ## apply changes for periodic boundary
-        if periodic_boundary_operator !== nothing
-            ExtendableFEM.build_assembler!(periodic_boundary_operator, [Solution[1], Solution[1]])
-            periodic_boundary_operator.assembler(SE, rhs.entries, true, true)
-            #bdofs = fixed_dofs(periodic_boundary_operator)
-            #for dof in bdofs
-            #    SE[dof,dof] = fixed_penalty
-            #    rhs.entries[dof] = 0
-            #    Solution.entries[dof] = 0
-            #end
-        end
-
-        flush!(SE)
+        
     end
 
     if solve_polarisation
@@ -351,6 +349,11 @@ function solve_lowlevel(
             if boundary_operator !== nothing
                 view(residual, bdofs) .= 0
             end
+            if length(periodic_boundary_operator) > 0
+                for op in periodic_boundary_operator
+                    view(residual, fixed_dofs(op)) .= 0
+                end
+            end
 
             nlres = norm(residual)
             @info "         ---> nonlinear iteration $iteration, linres = $linres, nlres = $nlres, timeASSEMBLY + timeSOLVE = $time_assembly + $time_solver"
@@ -381,6 +384,11 @@ function solve_lowlevel(
             residual .-= rhs.entries
             if boundary_operator !== nothing
                 view(residual, bdofs) .= 0
+            end
+            if length(periodic_boundary_operator) > 0
+                for op in periodic_boundary_operator
+                    view(residual, fixed_dofs(op)) .= 0
+                end
             end
             linres = norm(residual)
 
@@ -668,12 +676,12 @@ function solve_lowlevel_parallel(
         if periodic_boundary_operator !== nothing
             ExtendableFEM.build_assembler!(periodic_boundary_operator, [Solution[1], Solution[1]])
             periodic_boundary_operator.assembler(SE, rhs.entries, true, true)
-            #bdofs = fixed_dofs(periodic_boundary_operator)
-            #for dof in bdofs
-            #    SE[dof,dof] = fixed_penalty
-            #    rhs.entries[dof] = 0
-            #    Solution.entries[dof] = 0
-            #end
+            bdofs = fixed_dofs(periodic_boundary_operator)
+            for dof in bdofs
+                SE[dof,dof] = fixed_penalty
+                rhs.entries[dof] = 0
+                Solution.entries[dof] = 0
+            end
         end
 
         flush!(SE)

@@ -271,7 +271,7 @@ function condensator3D(; scale=[50,50,50], d = 5, nrefs = 1, maxvol1 = prod(scal
     return xgrid
 end
 
-function condensator3D_tensorgrid(; scale = [50,50,50], d = 10, nrefs = 2)
+function condensator3D_tensorgrid(; scale = [50,50,50], d = scale[3]/5, nrefs = 2)
 
     @info "Generating 3D condensator grid for a cuboid with dimensions ($(scale[1]),$(scale[2]),$(2*scale[1]+d)) and middle layer of width $d."
 
