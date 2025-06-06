@@ -35,17 +35,17 @@ export repair_grid!
 
 include("grids.jl")
 export bimetal_strip3D, bimetal_strip2D, bimetal_strip3D_middle_layer, bimetal_tensorgrid, bimetal_tensorgrid_uniform, bimetal_tensorgrid_uniform!
-export condensator3D, condensator3D_tensorgrid, condensator2D
+export condensator3D, condensator3D_tensorgrid, condensator3D_tensorgrid!, condensator2D
 export nonpolarquantumwell3D, nonpolarquantumwell2D
 export nanowire_grid, nanowire_tensorgrid, nanowire_tensorgrid_mirror
 
 include("materialstructuretype.jl")
 export MaterialStructureType
-export ZincBlende2D, ZincBlende001, ZincBlende111_C14, ZincBlende111_C15, ZincBlende111_C14_C15, Wurtzite0001
+export ZincBlende2D, ZincBlende001, ZincBlende111_C14, ZincBlende111_C15, ZincBlende111_C14_C15, Wurtzite0001, Wurtzite
 
 include("materials.jl")
 export MaterialType
-export TestMaterial, GaAs, AlInAs, AlGaAs, InGaAs
+export TestMaterial, GaAs, AlInAs, AlGaAs, InGaAs, GaN, InGaN
 export MaterialParameters
 export get_materialtype
 

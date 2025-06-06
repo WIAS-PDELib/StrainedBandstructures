@@ -3,7 +3,7 @@
 ## on unbended and bended grid
 function exportVTK(filename, eps0, Displacement::FEVectorBlock{T,Tv,Ti,FEType,APT}, Polarisation = nothing;
     EST = AnisotropicDiagonalPrestrain,
-    strain_model = NonlinearElasticStrainD,
+    strain_model = NonlinearElasticStrain3D,
     P0strain::Bool = true,
     eps_gfind = 1e-12,
     upscaling = 0) where {T,Tv,Ti,FEType,APT}

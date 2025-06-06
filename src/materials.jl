@@ -13,27 +13,41 @@ abstract type GaAs <: MaterialType end
 """
     $(TYPEDEF)
 
-    Alluminum-Indium-Arsenite compound where x ...
+    Alluminum(x)-Indium(1-x)-Arsenite compound
 """
 abstract type AlInAs{x} <: MaterialType where {x <: Float64} end
 """
     $(TYPEDEF)
 
-    Alluminum-Gallium-Arsenite compound where x ...
+    Alluminum(x)-Gallium(1-x)-Arsenite compound
 """
 abstract type AlGaAs{x} <: MaterialType where {x <: Float64} end
 """
     $(TYPEDEF)
 
-    Indium-Gallium-Arsenite compound where x ...
+    Indium(x)-Gallium(1-x)-Arsenite compound
 """
 abstract type InGaAs{x} <: MaterialType where {x <: Float64} end
+"""
+    $(TYPEDEF)
+
+    Gallium Nitride
+"""
+abstract type GaN <: MaterialType end
+"""
+    $(TYPEDEF)
+
+    Indium(x)-Gallium(1-x)-Nitride compound
+"""
+abstract type InGaN{x} <: MaterialType where {x <: Float64} end
 
 Base.String(T::Type{<:TestMaterial}) = "Test($(T.parameters[1])))"
 Base.String(::Type{GaAs}) = "GaAs"
 Base.String(T::Type{<:AlInAs}) = "Al_$(T.parameters[1])In_$(1 - T.parameters[1])As"
 Base.String(T::Type{<:AlGaAs}) = "Al_$(T.parameters[1])Ga_$(1 - T.parameters[1])As"
 Base.String(T::Type{<:InGaAs}) = "In_$(T.parameters[1])Ga_$(1 - T.parameters[1])As"
+Base.String(::Type{GaN}) = "GaN"
+Base.String(T::Type{<:InGaN}) = "In_$(T.parameters[1])Ga_$(1 - T.parameters[1])N"
 
 """
     $(TYPEDEF)
@@ -107,17 +121,16 @@ function MaterialParameters(MT::Type{TestMaterial{x}}) where {x}
 end
 
 function MaterialParameters(MT::Type{GaAs}, MST::Type{<:MaterialStructureType})
-
     # elastic constants
     # Phys. Rev. B 95, 245309 (2017)
-    # wurtzite
+    # Zincblende-001
     ElasticConstants = Dict() # from Vurgaftman, see also SPHInX GaAs.sx file
     ElasticConstants["C11"] = 122.1 # GPa (118.8)
     ElasticConstants["C12"] =  56.6 # GPa (53.8)
     ElasticConstants["C44"] =  60.0 # GPa (59.4)
 
     # piezoelectric constants
-    # zinc blende
+    # Zincblende-001
     PiezoElectricConstants = Dict()
     # Quasi-cubic approximation using the values from Beya-Wakata et al., Phys. Rev. B 84, 195207 (2011)
     # see also Bernardini et al., Phys. Rev. B 56, R10024 (1997)
@@ -242,3 +255,74 @@ function MaterialParameters(MT::Type{InGaAs{x}}, MST::Type{<:MaterialStructureTy
     return MaterialParameters{Float64, MT, MST}(ElasticConstants, PiezoElectricConstants, lc, Psp, kappar)
 end
 
+function MaterialParameters(MT::Type{GaN}, MST::Type{<:MaterialStructureType})
+    # elastic constants
+    # Phys. Rev. B 94, 125312 (2011)
+    # wurtzite
+    ElasticConstants = Dict()
+    ElasticConstants["C11"] = 390 # GPa
+    ElasticConstants["C12"] = 145 # GPa
+    ElasticConstants["C13"] = 106 # GPa
+    ElasticConstants["C33"] = 398 # GPa
+    ElasticConstants["C44"] = 105 # GPa
+
+    # piezoelectric constants
+    # wurtzite
+    PiezoElectricConstants = Dict()
+    PiezoElectricConstants["E15wz"] = -0.45
+    PiezoElectricConstants["E31wz"] = PiezoElectricConstants["E15wz"]
+    PiezoElectricConstants["E33wz"] = 0.83
+
+    # lattice constants
+    if MST <: ZincBlende001
+        lc = 3.02 * ones(Float64,3) # from https://next-gen.materialsproject.org/materials/mp-2853?formula=GaN (space group: Fm3̅m)
+    elseif MST <: ZincBlende111_C14 || MST <: ZincBlende111_C15 || MST <: ZincBlende111_C14_C15
+        lc = [3.02/sqrt(2), 3.02/sqrt(2), 3.02/sqrt(3/4)]
+    elseif  MST <: Wurtzite
+        lc = [3.189, 3.189, 5.185] # from Winkelnkemper, Schliwa, Bimberg, Phys. Rev. B 74, 155322 (2006)
+    end
+
+    # C/m2 spontaneous polarization
+    Psp = -0.034*ones(Float64,3)
+
+    # relative dielectric constant
+    kappar = 9.6
+
+    return MaterialParameters{Float64, MT, MST}(ElasticConstants, PiezoElectricConstants, lc, Psp, kappar)
+end
+
+function MaterialParameters(MT::Type{InGaN{x}}, MST::Type{<:MaterialStructureType}) where {x}
+    # elastic constants (using GaN data above)
+    # Phys. Rev. B 94, 125312 (2011)
+    # wurtzite
+    ElasticConstants = Dict()
+    ElasticConstants["C11"] = x*223 + (1-x)*390 # GPa
+    ElasticConstants["C12"] = x*115 + (1-x)*145 # GPa
+    ElasticConstants["C13"] = x*92  + (1-x)*106 # GPa
+    ElasticConstants["C33"] = x*224 + (1-x)*398 # GPa
+    ElasticConstants["C44"] = x*48  + (1-x)*105 # GPa
+
+    # piezoelectric constants (using GaN data above)
+    # wurtzite
+    PiezoElectricConstants = Dict()
+    PiezoElectricConstants["E15wz"] = x*(-0.52) + (1-x)*(-0.45)
+    PiezoElectricConstants["E31wz"] = PiezoElectricConstants["E15wz"]
+    PiezoElectricConstants["E33wz"] = x*(0.95)  + (1-x)*(0.83)
+
+    # lattice constants (using GaN data above)
+    if MST <: ZincBlende001
+        lc = (x*3.33 + (1-x)*3.02) * ones(Float64,3) # from https://next-gen.materialsproject.org/materials/mp-20812?formula=InN (space group: Fm3̅m)
+    elseif MST <: ZincBlende111_C14 || MST <: ZincBlende111_C15 || MST <: ZincBlende111_C14_C15
+        lc = [(x*3.33 + (1-x)*3.02)/sqrt(2), (x*3.33 + (1-x)*3.02)/sqrt(2), (x*3.33 + (1-x)*3.02)/sqrt(3/4)]
+    elseif  MST <: Wurtzite
+        lc = [(x*3.545 + (1-x)*3.189), (x*3.545 + (1-x)*3.189), (x*5.703 + (1-x)*5.185)] # from Winkelnkemper, Schliwa, Bimberg, Phys. Rev. B 74, 155322 (2006)
+    end
+
+    # C/m2 spontaneous polarization (using GaN data above)
+    Psp = (x*(-0.042) + (1-x)*(-0.034))*ones(Float64,3)
+
+    # relative dielectric constant (using GaN data above)
+    kappar = x*15.3  + (1-x)*9.6
+
+    return MaterialParameters{Float64, MT, MST}(ElasticConstants, PiezoElectricConstants, lc, Psp, kappar)
+end

@@ -205,7 +205,6 @@ function solve_lowlevel(
             end
         end
 
-
         ## apply changes for periodic boundary
         if periodic_boundary_operator !== nothing
             ExtendableFEM.build_assembler!(periodic_boundary_operator, [Solution[1], Solution[1]])
@@ -239,7 +238,6 @@ function solve_lowlevel(
             fill!(S[1,1],0)
             fill!(rhs[1],0)
         end
-
 
         for cell = 1 : ncells
 

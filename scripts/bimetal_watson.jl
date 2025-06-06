@@ -41,7 +41,7 @@ function run_watson(; dim = 2, force::Bool = false, generate_vtk = true)
         "nrefs" => [1],                                                                     # number of uniform refinements before solve
         "avgc" => [2],                                                                      # lattice number calculation method (average case)
         "linsolver" => ExtendableSparse.MKLPardisoLU,                                       # linear solver (try ExtendableSparse.MKLPardisoLU or ExtendableSparse.LUFactorization)
-        "grid_type" => "condensator_tensorgrid",                                                           # grid options: default, condensator, condensator_tensorgrid
+        "grid_type" => "default",                                                           # grid options: default, condensator, condensator_tensorgrid
         "bc" => "robin",                                                                    # boundary conditions: robin (Dirichlet and/or Newmann), periodic
     )
 
@@ -61,7 +61,7 @@ function get_defaults()
         "latmis" => 0.05,                               # lattice mismatch between lattice constants of material A and B (lc = [5,5*(1+latmis)])
         "E" => [1e-6, 1e-6],                            # elastic moduli of material A and B
         "ν" => [0.15, 0.15],                            # Poisson numbers of material A and B
-        "scale" => [50,50, 2000],                           # dimensions of bimetal
+        "scale" => [50,50,2000],                        # dimensions of bimetal
         "full_nonlin" => true,                          # use complicated model (ignored if linear strain is used)
         "use_emb" => true,                              # use embedding (true) or damping (false) solver ?
         "nsteps" => 4,                                  # number of embedding steps in embedding solver
@@ -74,7 +74,7 @@ function get_defaults()
         "nrefs" => 1,                                   # number of uniform refinements before solve
         "avgc" => 2,                                    # lattice number calculation method (average case)
         "linsolver" => ExtendableSparse.MKLPardisoLU,   # linear solver (try ExtendableSparse.MKLPardisoLU or ExtendableSparse.LUFactorization)
-        "grid_type" => "condensator_tensorgrid",                       # grid options: default, condensator, condensator_tensorgrid
+        "grid_type" => "default",                       # grid options: default, condensator, condensator_tensorgrid
         "bc" => "robin",                                # boundary conditions: robin (Dirichlet and/or Newmann), periodic
         "scenario" => 1,                                # scenario number that fixes materials for core/stressor (1: default, no specific material, 2: semiconductor materials)
         "stressor_x" => 0.5,                            # x value for x-dependent stressor material
@@ -82,15 +82,13 @@ function get_defaults()
         "strainm" => NonlinearStrain3D,                 # strain model
         "estrainm" => IsotropicPrestrain,               # elastic strain model
     )
-    #dim = length(params["scale"])
-    #params["strainm"] = dim == 2 ? NonlinearStrain2D : NonlinearStrain3D
     return params
 end
 function set_params!(d; kwargs)
     for (k,v) in kwargs
         d[String(k)]=v
     end
-    #d["strainm"] = length(d["scale"]) == 2 ? NonlinearStrain2D : NonlinearStrain3D
+    d["strainm"] = length(d["scale"]) == 2 ? NonlinearStrain2D : NonlinearStrain3D
     return nothing
 end
 
@@ -125,6 +123,7 @@ function run_single(d = nothing; force::Bool = false, generate_vtk = true, Plott
         @info "lattice mismatch: $(round(100*(lc[2]/lc[1]-1),digits=3)) %"
     elseif d["scenario"] == 2
         materials = [GaAs, AlInAs{d["stressor_x"]}]
+        #materials = [GaN, InGaN{d["stressor_x"]}]
         materialstructuretype = d["mstruct"]
         MD = HeteroStructureData(materials, materialstructuretype)
 
@@ -228,7 +227,10 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
         elseif grid_type == "condensator"
             xgrid = condensator3D(; scale = scale, d = 10, nrefs = nrefs); dirichlet_regions = [1,2,5,6] # core sides and bottoms
         elseif grid_type == "condensator_tensorgrid"
-            xgrid = condensator3D_tensorgrid(; scale = scale, d = 10, nrefs = nrefs)
+            xgrid, xgrid_cross_section = condensator3D_tensorgrid!(; scale=scale, d=3, dx=1, nrefs=nrefs, stressor_cell_per=10)
+            # core sides = [1,2,3,4], bottom and upper sides = [5,6], stressor sides = [7,8,9,10]
+
+            #xgrid, xgrid_cross_section = condensator3D_tensorgrid(; scale = scale, d = 10, nrefs = nrefs)
             dirichlet_regions = [] # free boundary (up to normal direction on bottom + 1 fixed point)
             #dirichlet_regions = [5,6] # bottom and top
             #dirichlet_regions = [7] # stressor side
@@ -236,8 +238,8 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
             if bc =="periodic"
                 periodic_regions = [[1,3,(f1,f2) -> abs(f1[1] - f2[1]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]],
                                 [2,4,(f1,f2) -> abs(f1[2] - f2[2]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]],
-                                [7,8,(f1,f2) -> abs(f1[1] - f2[1]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]],
-                                [9,10,(f1,f2) -> abs(f1[2] - f2[2]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]]]
+                                [7,9,(f1,f2) -> abs(f1[1] - f2[1]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]],
+                                [8,10,(f1,f2) -> abs(f1[2] - f2[2]) + abs(f1[3] - f2[3]) < 1e-12,  [-1,-1,-1]]]
             end
          else
             xgrid = bimetal_strip3D_middle_layer(; scale = scale, reflevel = nrefs); dirichlet_regions = [3,4]
@@ -287,12 +289,9 @@ function main(d::Dict; Plotter = Plotter, verbosity = 0)
     if scenario == 1
         DisplacementOperator = get_displacement_operator([IsotropicElasticityTensor(λ[r], μ[r], dim) for r = 1 : nregions], strainm, IsotropicPrestrain, misfit_strain, α; dim = dim, displacement = u, emb = parameters, regions = 1:nregions, bonus_quadorder = 2*(femorder-1))
     elseif scenario == 2
-        DisplacementOperator = get_displacement_operator(MD.TensorC, strainm, IsotropicPrestrain, misfit_strain, α; dim = 3, displacement = u, emb = parameters, regions = 1:nregions, bonus_quadorder = bonus_quadorder)
-        #DisplacementOperator = get_displacement_operator(MD.TensorC, strainm, IsotropicPrestrain, misfit_strain, α; dim = dim, displacement = u, emb = parameters, regions = 1:nregions, bonus_quadorder = 2*(femorder-1))
+        DisplacementOperator = get_displacement_operator(MD.TensorC, strainm, IsotropicPrestrain, misfit_strain, α; dim = dim, displacement = u, emb = parameters, regions = 1:nregions, bonus_quadorder = bonus_quadorder)
     end
-        
     assign_operator!(Problem, DisplacementOperator)
-
 
     ## choose finite element type for displacement (vector-valued) and polarisation (scalar-valued)
     if femorder == 1

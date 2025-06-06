@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.42
+# v0.19.46
 
 using Markdown
 using InteractiveUtils
@@ -20,6 +20,7 @@ begin
     using SimplexGridFactory
     using LinearAlgebra
 	using PyPlot
+	using Random
     default_plotter!(PlutoVista)
     TableOfContents()
 end
@@ -700,7 +701,6 @@ function nanowire_tensorgrid_mirror!(; scale = [1,1,1,1], shape = 1,
 	
 	# optional refinement at interface corners 
 	if corner_refinement == true
-		@info "HELLO"
         function unsuitable2(x1,y1,x2,y2,x3,y3, area)
             bary = [(x1+x2+x3)/3,(y2+y2+y3)/3]
 			dist = min(norm(bary-refinement_center1),norm(bary-refinement_center2))
@@ -988,7 +988,73 @@ let
 end
 
 # ╔═╡ 992280b9-e191-4c03-8291-f2dcb5df1027
-md" Additional grid functions:"
+md" ## Additional grid functions:"
+
+# ╔═╡ a87c9034-0877-46b4-bf7f-f449daf3d744
+function condensator3D_tensorgrid!(; scale=[50,50,50], d=10, nrefs=0, dx=0.5,
+	stressor_cell_per=10)
+
+	X = scale[1]
+    Y = scale[2]
+    Z0 = scale[3]
+	Z = 2*scale[3] + d
+
+    @info "Generating 3D condensator grid for a cuboid with dimensions
+			($(X),$(Y),$(Z)) and middle layer of width $d."
+
+    XX = LinRange(0,X,Int(round(X/dx))+1)
+    YY = LinRange(0,Y,Int(round(Y/dx))+1)
+
+	xygrid = simplexgrid(XX,YY)
+    grid_cross_section = deepcopy(xygrid)
+
+	z_levels_uniform = LinRange(0,Z0,Int(round(Z0/dx))+1)
+	bottom_grid = simplexgrid(xygrid, z_levels_uniform, bot_offset=4, top_offset=5)
+
+	z_levels_uniform = LinRange(Z0,Z0+d,Int(round(d/dx))+1)
+	middle_grid = simplexgrid(xygrid, z_levels_uniform, bot_offset=4, top_offset=5)
+
+	z_levels_uniform = LinRange(Z0+d,Z,Int(round(Z0/dx))+1)
+	top_grid = simplexgrid(xygrid, z_levels_uniform, bot_offset=4, top_offset=5)
+
+	cell_num = Int(round(stressor_cell_per/100*length(middle_grid[CellRegions])/6))
+	cell_indices = shuffle(1:6:length(middle_grid[CellRegions]))[1:cell_num]
+	for (~,j) in enumerate(cell_indices)
+		middle_grid[CellRegions][j:j+5] .= 2
+	end
+
+	grid = glue(bottom_grid,middle_grid)
+	grid = glue(grid,top_grid)
+
+    # the offsets lead to the following boundary regions (anti-clockwise indexing):
+    # 1 - 4  = side core
+    # 5      = bottom core
+    # 6      = tope core
+    # 7 - 10 = side stressor
+	bfacemask!(grid,[0,0,Z0],[X,0,Z0+d],7)
+	bfacemask!(grid,[X,0,Z0],[X,Y,Z0+d],8)
+	bfacemask!(grid,[0,Y,Z0],[X,Y,Z0+d],9)
+	bfacemask!(grid,[0,0,Z0],[0,Y,Z0+d],10)
+
+    return grid, grid_cross_section
+end
+
+# ╔═╡ 7d5f4cb2-c3d7-4e33-8327-6986f951a237
+let
+	scale = [70,70,40]
+	nrefs = 0
+	dx = 2
+	d = 6
+	stressor_cell_per = 10
+
+	grid, cross_section = condensator3D_tensorgrid!(; scale=scale, d=d, dx=dx, nrefs=nrefs, stressor_cell_per=stressor_cell_per)
+
+	vis = GridVisualizer(Plotter=PlutoVista,layout=(1,1),resolution=(700,700))
+	gridplot!(vis[1,1],grid,xplane=30,yplane=30,zplane=42)
+	@info "at cross section: $(num_nodes(cross_section)) (nodes), $(num_cells(cross_section)) (cells)"
+	@info "total number: $(num_nodes(grid)) (nodes), $(num_cells(grid)) (cells)"
+	reveal(vis)
+end
 
 # ╔═╡ f3203adb-6624-4cb8-bab7-825e9e2d956a
 function bimetal_tensorgrid_uniform1(; scale = [1,1,1], nrefs = 1, material_border = 0.5)
@@ -1136,8 +1202,10 @@ end
 # ╟─0580ba22-7da3-498e-929b-963ff8a18a7f
 # ╠═5bb8e9ca-8669-46a1-97d4-72a912465e9e
 # ╟─4a50c199-2d06-420a-b797-3faa40ab14b8
+# ╠═7d5f4cb2-c3d7-4e33-8327-6986f951a237
 # ╠═1e6e16d0-a4e4-43e0-a67b-88656c1f5247
 # ╠═8f3027d3-fb5f-4f24-ab6b-4dc4526a4f99
 # ╟─992280b9-e191-4c03-8291-f2dcb5df1027
+# ╟─a87c9034-0877-46b4-bf7f-f449daf3d744
 # ╟─f3203adb-6624-4cb8-bab7-825e9e2d956a
 # ╟─79ded2f2-eb09-4114-abda-d79b6111fbb5

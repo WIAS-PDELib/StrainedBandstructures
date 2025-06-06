@@ -130,9 +130,69 @@ function HeteroStructureData(materials::Array{DataType,1}, MST::Type{<:MaterialS
             C12 = data[m].ElasticConstants["C12"]
             C44 = data[m].ElasticConstants["C44"]
             C11wz = (1/6) * (3*C11 + 3 * C12 + 6 * C44)
-            C33wz = (1/6) * (2*C11 + 4 * C12 + 8 * C44)
             C12wz = (1/6) * (1*C11 + 5 * C12 - 2 * C44)
             C13wz = (1/6) * (2*C11 + 4 * C12 - 4 * C44)
+            C33wz = (1/6) * (2*C11 + 4 * C12 + 8 * C44)
+            C44wz = (1/6) * (2*C11 - 2 * C12 + 2 * C44)
+            C66wz = (1/6) * (1*C11 - 1 * C12 + 4 * C44)
+
+            # stiffness tensor in N/(nm)^2
+            # Equation (7)
+            C[m] = TensorMatrixType(
+                   1e-9*[ C11wz C12wz C13wz 0     0     0
+                          C12wz C11wz C13wz 0     0     0
+                          C13wz C13wz C33wz 0     0     0
+                          0     0     0     C44wz 0     0
+                          0     0     0     0     C44wz 0
+                          0     0     0     0     0     C66wz ])
+
+            # piezoelectric tensor in C/(nm^2)
+            # Equation (25)
+            E31wz = data[m].PiezoElectricConstants["E31wz"]
+            E33wz = data[m].PiezoElectricConstants["E33wz"]
+            E15wz = data[m].PiezoElectricConstants["E15wz"]
+            E[m] = TensorMatrixType(
+                   1e-9*[     0     0     0     0  E15wz  0
+                         0     0     0 E15wz      0  0
+                     E31wz E31wz E33wz     0      0  0 ])
+                elseif MST <: Wurtzite0001
+            C11 = data[m].ElasticConstants["C11"]
+            C12 = data[m].ElasticConstants["C12"]
+            C44 = data[m].ElasticConstants["C44"]
+            C11wz = (1/6) * (3*C11 + 3 * C12 + 6 * C44)
+            C12wz = (1/6) * (1*C11 + 5 * C12 - 2 * C44)
+            C13wz = (1/6) * (2*C11 + 4 * C12 - 4 * C44)
+            C33wz = (1/6) * (2*C11 + 4 * C12 + 8 * C44)
+            C44wz = (1/6) * (2*C11 - 2 * C12 + 2 * C44)
+            C66wz = (1/6) * (1*C11 - 1 * C12 + 4 * C44)
+
+            # stiffness tensor in N/(nm)^2
+            # Equation (7)
+            C[m] = TensorMatrixType(
+                   1e-9*[ C11wz C12wz C13wz 0     0     0
+                          C12wz C11wz C13wz 0     0     0
+                          C13wz C13wz C33wz 0     0     0
+                          0     0     0     C44wz 0     0
+                          0     0     0     0     C44wz 0
+                          0     0     0     0     0     C66wz ])
+
+            # piezoelectric tensor in C/(nm^2)
+            # Equation (25)
+            E31wz = data[m].PiezoElectricConstants["E31wz"]
+            E33wz = data[m].PiezoElectricConstants["E33wz"]
+            E15wz = data[m].PiezoElectricConstants["E15wz"]
+            E[m] = TensorMatrixType(
+                   1e-9*[     0     0     0     0  E15wz  0
+                         0     0     0 E15wz      0  0
+                     E31wz E31wz E33wz     0      0  0 ])
+        elseif MST <: Wurtzite0001
+            C11 = data[m].ElasticConstants["C11"]
+            C12 = data[m].ElasticConstants["C12"]
+            C44 = data[m].ElasticConstants["C44"]
+            C11wz = (1/6) * (3*C11 + 3 * C12 + 6 * C44)
+            C12wz = (1/6) * (1*C11 + 5 * C12 - 2 * C44)
+            C13wz = (1/6) * (2*C11 + 4 * C12 - 4 * C44)
+            C33wz = (1/6) * (2*C11 + 4 * C12 + 8 * C44)
             C44wz = (1/6) * (2*C11 - 2 * C12 + 2 * C44)
             C66wz = (1/6) * (1*C11 - 1 * C12 + 4 * C44)
 
@@ -155,6 +215,33 @@ function HeteroStructureData(materials::Array{DataType,1}, MST::Type{<:MaterialS
                    1e-9*[     0     0     0     0  E15wz  0 
                          0     0     0 E15wz      0  0 
                      E31wz E31wz E33wz     0      0  0 ])
+            elseif MST <: Wurtzite
+                C11wz = data[m].ElasticConstants["C11"]
+                C12wz = data[m].ElasticConstants["C12"]
+                C13wz = data[m].ElasticConstants["C13"]
+                C33wz = data[m].ElasticConstants["C33"]
+                C44wz = data[m].ElasticConstants["C44"]
+                C66wz = (1/2) * (C11wz - C12wz)
+
+                # stiffness tensor in N/(nm)^2
+                # Equation (7)
+                C[m] = TensorMatrixType(
+                        1e-9*[ C11wz C12wz C13wz 0     0     0
+                                C12wz C11wz C13wz 0     0     0
+                                C13wz C13wz C33wz 0     0     0
+                                0     0     0     C44wz 0     0
+                                0     0     0     0     C44wz 0
+                                0     0     0     0     0     C66wz ])
+
+                # piezoelectric tensor in C/(nm^2)
+                # Equation (25)
+                E31wz = data[m].PiezoElectricConstants["E31wz"]
+                E33wz = data[m].PiezoElectricConstants["E33wz"]
+                E15wz = data[m].PiezoElectricConstants["E15wz"]
+                E[m] = TensorMatrixType(
+                        1e-9*[     0     0     0     0  E15wz  0
+                                0     0     0 E15wz      0  0
+                            E31wz E31wz E33wz     0      0  0 ])
         end
     end
 

@@ -2,10 +2,10 @@
 ## computes the curvature (of the circle connecting points at front and back)
 ## and bending angle and (if given) compares the curvature to the analytical value
 #function compute_statistics(xgrid, Displacement::FEVectorBlock{T,Tv,Ti,FEType,APT}, scaling) where {T,Tv,Ti,FEType,APT}
-function compute_statistics(xgrid, Displacement, bending_axis_end_points, FEType)
+function compute_statistics(xgrid, Displacement, bending_axis_end_points, rotate = 0)
     xCoordinates = xgrid[Coordinates]
     nnodes = size(xCoordinates,2)
-    ncomponents = get_ncomponents(FEType)
+    ncomponents = size(xCoordinates,1)
 
     repair_grid!(Displacement.FES.xgrid)
 
@@ -49,5 +49,25 @@ function compute_statistics(xgrid, Displacement, bending_axis_end_points, FEType
     #R = dist_bend*sin((π-angle_rad)/2)/sin(angle_rad)
     R = dist_bend/(2*sin(angle_rad))
     curvature = 1/R
-    return angle, curvature, dist_bend, xCoordinates[:,farthest_point] + nodevals[:,farthest_point]
+
+    ## normal vector of the default bending plane (into direction of stressor)
+    theta = rotate * pi/180
+    n1 = [cos(theta), -sin(theta), 0]
+    #d1 = 0
+
+    ## compute normal of real bending plane, n2 = (A-B) x (A-C)
+    A = xCoordinates[:,farthest_point] + nodevals[:,farthest_point]
+    B = xCoordinates[:,origin_point]
+    C = xCoordinates[:,farthest_point]
+    n2 = cross(A-B, A-C)
+    #d2 = dot(n2, A)
+
+    ## angle between the two planes
+    shifting_angle_rad = acos(abs(dot(n1,n2))/(sqrt(dot(n1,n1))*sqrt(dot(n2,n2))))
+    shifting_angle = shifting_angle_rad * 180/pi
+    if (rotate == 0 && A[1] < 0) || (rotate == 90 && A[2] < 0)
+        shifting_angle = -shifting_angle
+    end
+
+    return angle, curvature, shifting_angle, dist_bend, xCoordinates[:,farthest_point] + nodevals[:,farthest_point]
 end

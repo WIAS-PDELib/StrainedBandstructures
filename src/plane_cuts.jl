@@ -565,6 +565,10 @@ function perform_simple_plane_cuts(target_folder_cut, Solution_original, plane_p
         end
 
         ## calculate strain from gradient interpolation on (undisplaced) cut
+        if !(strain_model <: StrainType)
+            @warn "strain type not recognized correctly, changed to NonlinearStrain3D"
+            strain_model = NonlinearStrain3D
+        end
         for nv in [[nodevals_gradient,nodevals_ϵu,0], [nodevals_gradient1,nodevals_ϵu1,1], [nodevals_gradient2,nodevals_ϵu2,3]]
             nv_∇u = nv[1]
             nv_ϵu = nv[2]
@@ -608,7 +612,7 @@ function perform_simple_plane_cuts(target_folder_cut, Solution_original, plane_p
 
         ## report
         for c = 1 : 6
-            @info "minimal/maximal jump at interface in $(component_names[c]) component: $(extrema(jumps[c,:]))"
+            @info "% minimal/maximal jump at interface in $(component_names[c]) component: $(100 .* extrema(jumps[c,:]))"
         end
         
         if Plotter !== nothing
@@ -654,14 +658,13 @@ function perform_simple_plane_cuts(target_folder_cut, Solution_original, plane_p
         kwargs[:displacement] = nodevals
         kwargs[:grad_displacement] = nodevals_gradient
         kwargs[:strain] = nodevals_ϵu
- #       kwargs[:elastic_strain] = nodevals_ϵu_elastic
+        kwargs[:elastic_strain] = nodevals_ϵu_elastic
         if length(Solution) > 1
             kwargs[:polarisation] = nodevals_P
             kwargs[:electric_field] = nodevals_E
             kwargs1[:electric_field] = nodevals_E1
             kwargs2[:electric_field] = nodevals_E2
         end
-
         kwargs1[:elastic_strain] = nodevals_ϵu1
         kwargs2[:elastic_strain] = nodevals_ϵu2
         ExtendableGrids.writeVTK(target_folder_cut_level * "simple_cut_$(cut_level)_data" * (deform ? "_deformed.vtu" : ".vtu"), cut_grid; kwargs...)

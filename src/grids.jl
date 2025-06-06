@@ -284,6 +284,7 @@ function condensator3D_tensorgrid(; scale = [50,50,50], d = 10, nrefs = 2)
     YY = LinRange(0,scale[2],npts)
 
     xgrid = simplexgrid(XX,YY)
+    xgrid_cross_section = deepcopy(xgrid)
 
     z_levels_nonuniform = Array{Float64,1}(LinRange(0,scale[3]-d,npts))
     append!(z_levels_nonuniform, Array{Float64,1}(LinRange(scale[3]-d,scale[3],1+Int(npts/2))[3:end]))
@@ -305,9 +306,56 @@ function condensator3D_tensorgrid(; scale = [50,50,50], d = 10, nrefs = 2)
     bfacemask!(xgrid,[0,0,scale[3]],[0,Y,scale[3]+d],9)
 	bfacemask!(xgrid,[X,0,scale[3]],[X,Y,scale[3]+d],10)
 
-    return xgrid
+    return xgrid, xgrid_cross_section
 end
 
+function condensator3D_tensorgrid!(; scale=[50,50,50], d=10, nrefs=0, dx=0.5,
+	stressor_cell_per=10)
+
+	X = scale[1]
+    Y = scale[2]
+    Z0 = scale[3]
+	Z = 2*scale[3] + d
+
+    @info "Generating 3D condensator grid for a cuboid with dimensions
+			($(X),$(Y),$(Z)) and middle layer of width $d."
+
+    XX = LinRange(0,X,Int(round(X/dx))+1)
+    YY = LinRange(0,Y,Int(round(Y/dx))+1)
+
+	xygrid = simplexgrid(XX,YY)
+    grid_cross_section = deepcopy(xygrid)
+
+	z_levels_uniform = LinRange(0,Z0,Int(round(Z0/dx))+1)
+	bottom_grid = simplexgrid(xygrid, z_levels_uniform, bot_offset=4, top_offset=5)
+
+	z_levels_uniform = LinRange(Z0,Z0+d,Int(round(d/dx))+1)
+	middle_grid = simplexgrid(xygrid, z_levels_uniform, bot_offset=4, top_offset=5)
+
+	z_levels_uniform = LinRange(Z0+d,Z,Int(round(Z0/dx))+1)
+	top_grid = simplexgrid(xygrid, z_levels_uniform, bot_offset=4, top_offset=5)
+
+	cell_num = Int(round(stressor_cell_per/100*length(middle_grid[CellRegions])/6))
+	cell_indices = shuffle(1:6:length(middle_grid[CellRegions]))[1:cell_num]
+	for (~,j) in enumerate(cell_indices)
+		middle_grid[CellRegions][j:j+5] .= 2
+	end
+
+	grid = glue(bottom_grid,middle_grid)
+	grid = glue(grid,top_grid)
+
+    # the offsets lead to the following boundary regions (anti-clockwise indexing):
+    # 1 - 4  = side core
+    # 5      = bottom core
+    # 6      = tope core
+    # 7 - 10 = side stressor
+	bfacemask!(grid,[0,0,Z0],[X,0,Z0+d],7)
+	bfacemask!(grid,[X,0,Z0],[X,Y,Z0+d],8)
+	bfacemask!(grid,[0,Y,Z0],[X,Y,Z0+d],9)
+	bfacemask!(grid,[0,0,Z0],[0,Y,Z0+d],10)
+
+    return grid, grid_cross_section
+end
 
 function condensator2D(; A = 50, B = 100, d = 5, reflevel = 1, maxvol1 = B*d/4, maxvol2 = B*d/4)
 

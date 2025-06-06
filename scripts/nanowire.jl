@@ -440,9 +440,10 @@ function postprocess(filename = nothing; watson_datasubdir = watson_datasubdir, 
 
     #bending_axis_end_points = [[rotated_pointx,rotated_pointy,0],[rotated_pointx,rotated_pointy,geometry[4]]]
     bending_axis_end_points = [[0,0,0],[0,0,geometry[4]]]
-    angle, curvature, dist_bend, farthest_point = compute_statistics(solution[1].FES.xgrid, solution[1], bending_axis_end_points, eltype(solution[1].FES))
+    angle, curvature, shifting_angle, ~ = compute_statistics(solution[1].FES.xgrid, solution[1], bending_axis_end_points, rotate)
     d["angle"] = angle
     d["curvature"] = curvature
+    d["shifting_angle"] = shifting_angle
 
     # export vtk files
     if export_sol == true
